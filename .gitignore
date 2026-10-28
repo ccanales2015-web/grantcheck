@@ -1,0 +1,18 @@
+# Python virtual environment
+.venv/
+
+# Python-generated files
+__pycache__/
+*.pyc
+
+# Local environment variables and secrets
+.env
+.env.*
+
+# Test and tool caches
+.pytest_cache/
+.ruff_cache/
+
+# Operating system files
+.DS_Store
+Thumbs.db
