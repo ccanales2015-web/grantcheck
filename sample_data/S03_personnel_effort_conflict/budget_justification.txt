@@ -1,0 +1,23 @@
+
+GRANT APPLICATION BUDGET JUSTIFICATION
+Application ID: GC-S03
+Document Type: Budget Justification
+
+Project Title: Coastal Water Quality Monitoring
+
+PROJECT PERIOD
+The proposed project will be conducted over a 24-month period.
+
+PERSONNEL JUSTIFICATION
+The project will employ one Graduate Research Assistant
+at 25% effort throughout the project period.
+
+The total requested personnel cost for the Graduate
+Research Assistant is $24,000.
+
+TRAVEL JUSTIFICATION
+A total of $8,000 is requested for project-related travel.
+
+These funds will support travel to coastal monitoring
+sites for field data collection and participation in
+scientific conferences to present research findings.

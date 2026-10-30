@@ -1,0 +1,32 @@
+
+GRANT APPLICATION PROJECT NARRATIVE
+Application ID: GC-S03
+Document Type: Project Narrative
+
+Project Title: Coastal Water Quality Monitoring
+
+PROJECT OVERVIEW
+This project will investigate coastal water quality
+through field observations and environmental data analysis.
+
+The research will be conducted over two years, with
+monitoring activities scheduled throughout the project
+period.
+
+PROJECT ACTIVITIES
+During the first year, the research team will establish
+monitoring locations, collect baseline water quality
+measurements, and develop data analysis procedures.
+
+During the second year, the team will continue field
+monitoring, analyze the collected measurements, and
+prepare research publications.
+
+PERSONNEL
+A Graduate Research Assistant will support field data
+collection, data management, and statistical analysis.
+
+EXPECTED OUTCOMES
+The project will produce a coastal water quality dataset,
+an analysis of observed environmental trends, and
+research findings suitable for scientific publication.
