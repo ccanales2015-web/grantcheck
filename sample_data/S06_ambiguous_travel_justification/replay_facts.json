@@ -1,0 +1,77 @@
+{
+  "application_id": "GC-S06",
+  "candidate_facts": {
+    "project_duration_months": {
+      "budget": {
+        "value": 24,
+        "status": "present",
+        "evidence_text": "Project Duration: 24 months"
+      },
+      "budget_justification": {
+        "value": 24,
+        "status": "present",
+        "evidence_text": "The proposed project will be conducted over a 24-month period."
+      },
+      "project_narrative": {
+        "value": 24,
+        "status": "present",
+        "evidence_text": "The research will be conducted over two years"
+      }
+    },
+    "personnel_role": {
+      "budget": {
+        "value": "Graduate Research Assistant",
+        "status": "present",
+        "evidence_text": "Role: Graduate Research Assistant"
+      },
+      "budget_justification": {
+        "value": "Graduate Research Assistant",
+        "status": "present",
+        "evidence_text": "The project will employ one Graduate Research Assistant"
+      }
+    },
+    "personnel_cost_usd": {
+      "budget": {
+        "value": 24000,
+        "status": "present",
+        "evidence_text": "Personnel Cost: $24,000"
+      },
+      "budget_justification": {
+        "value": 24000,
+        "status": "present",
+        "evidence_text": "Research Assistant is $24,000."
+      }
+    },
+    "personnel_effort_percent": {
+      "budget": {
+        "value": 50,
+        "status": "present",
+        "evidence_text": "Personnel Effort: 50%"
+      },
+      "budget_justification": {
+        "value": 50,
+        "status": "present",
+        "evidence_text": "at 50% effort throughout the project period."
+      }
+    },
+    "travel_cost_usd": {
+      "budget": {
+        "value": 8000,
+        "status": "present",
+        "evidence_text": "Travel Cost: $8,000"
+      },
+      "budget_justification": {
+        "value": 8000,
+        "status": "present",
+        "evidence_text": "A total of $8,000 is requested for project-related travel."
+      }
+    },
+    "travel_justification": {
+      "budget_justification": {
+        "value": null,
+        "status": "uncertain",
+        "evidence_text": "Travel funds support project-related attendance and transportation activities."
+      }
+    }
+  }
+}
