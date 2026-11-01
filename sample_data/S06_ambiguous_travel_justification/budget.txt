@@ -1,0 +1,16 @@
+
+GRANT APPLICATION BUDGET
+Application ID: GC-S06
+Document Type: Budget
+
+Project Title: Coastal Water Quality Monitoring
+
+Project Duration: 24 months
+
+PERSONNEL
+Role: Graduate Research Assistant
+Personnel Cost: $24,000
+Personnel Effort: 50%
+
+TRAVEL
+Travel Cost: $8,000

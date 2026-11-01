@@ -1,0 +1,21 @@
+
+{
+  "scenario_id": "S06",
+  "application_id": "GC-S06",
+  "scenario_name": "Ambiguous Travel Justification",
+  "expected_rule_outcomes": {
+    "R-01": "pass",
+    "R-02": "pass",
+    "R-03": "pass",
+    "R-04": "uncertain"
+  },
+  "expected_finding_count": 0,
+  "expected_processing_status": "completed",
+  "expected_normalized_values": {
+    "project_duration_months": 24,
+    "personnel_role": "Graduate Research Assistant",
+    "personnel_cost_usd": 24000,
+    "personnel_effort_percent": 50,
+    "travel_cost_usd": 8000
+  }
+}
