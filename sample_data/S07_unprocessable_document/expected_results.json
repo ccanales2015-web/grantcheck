@@ -1,0 +1,21 @@
+
+{
+  "scenario_id": "S07",
+  "application_id": "GC-S07",
+  "scenario_name": "Unprocessable Document",
+  "expected_rule_outcomes": {
+    "R-01": "not_evaluated",
+    "R-02": "not_evaluated",
+    "R-03": "not_evaluated",
+    "R-04": "not_evaluated"
+  },
+  "expected_finding_count": 0,
+  "expected_processing_status": "exception",
+  "expected_normalized_values": {
+    "project_duration_months": null,
+    "personnel_role": null,
+    "personnel_cost_usd": null,
+    "personnel_effort_percent": null,
+    "travel_cost_usd": null
+  }
+}
