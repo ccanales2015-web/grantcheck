@@ -1,0 +1,25 @@
+
+{
+  "scenario_id": "S04",
+  "application_id": "GC-S04",
+  "scenario_name": "Project Duration Semantic Inconsistency",
+  "expected_rule_outcomes": {
+    "R-01": "pass",
+    "R-02": "pass",
+    "R-03": "finding",
+    "R-04": "pass"
+  },
+  "expected_finding_count": 1,
+  "expected_processing_status": "completed",
+  "expected_normalized_values": {
+    "project_duration_months": {
+      "budget": 24,
+      "budget_justification": 36,
+      "project_narrative": 24
+    },
+    "personnel_role": "Graduate Research Assistant",
+    "personnel_cost_usd": 24000,
+    "personnel_effort_percent": 50,
+    "travel_cost_usd": 8000
+  }
+}
