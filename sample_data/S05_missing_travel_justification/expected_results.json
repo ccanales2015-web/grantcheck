@@ -11,14 +11,31 @@
   },
   "expected_finding_count": 1,
   "expected_processing_status": "completed",
+  "expected_review_required": true,
   "expected_normalized_values": {
-    "project_duration_months": 24,
-    "personnel_role": "Graduate Research Assistant",
-    "personnel_cost_usd": 24000,
-    "personnel_effort_percent": 50,
+    "project_duration_months": {
+      "budget": { "value": 24, "status": "present" },
+      "budget_justification": { "value": 24, "status": "present" },
+      "project_narrative": { "value": 24, "status": "present" }
+    },
+    "personnel_role": {
+      "budget": { "value": "Graduate Research Assistant", "status": "present" },
+      "budget_justification": { "value": "Graduate Research Assistant", "status": "present" }
+    },
+    "personnel_cost_usd": {
+      "budget": { "value": 24000, "status": "present" },
+      "budget_justification": { "value": 24000, "status": "present" }
+    },
+    "personnel_effort_percent": {
+      "budget": { "value": 50, "status": "present" },
+      "budget_justification": { "value": 50, "status": "present" }
+    },
     "travel_cost_usd": {
-      "budget": 8000,
-      "budget_justification": null
+      "budget": { "value": 8000, "status": "present" },
+      "budget_justification": { "value": null, "status": "missing" }
+    },
+    "travel_justification": {
+      "budget_justification": { "value": null, "status": "missing" }
     }
   }
 }
