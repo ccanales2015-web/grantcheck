@@ -22,6 +22,7 @@ import math
 from pathlib import Path
 
 from grantcheck.document_intake import DOCUMENT_ROLES, INTAKE_COMPLETED
+from grantcheck.fact_validation import CandidateFactValidationError, validate_candidate_facts
 from grantcheck.fact_schema import (
     FACT_ALLOWED_VALUES,
     FACT_SOURCES,
@@ -316,5 +317,12 @@ def load_replay_facts(application, replay_path):
                 where,
                 f"candidate_facts.{fact}.{role}",
             )
+
+    # Enforce the shared candidate-fact contract after the existing replay-specific
+    # checks, preserving their diagnostic messages and provenance validation.
+    try:
+        validate_candidate_facts(candidate_facts)
+    except CandidateFactValidationError as error:
+        raise ReplayValidationError(f"{where}: {error}") from error
 
     return candidate_facts
