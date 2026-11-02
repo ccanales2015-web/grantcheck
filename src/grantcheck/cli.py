@@ -55,8 +55,12 @@ DETAILS_NOTICE = (
     "Details: potentially sensitive review information. "
     "Share only with authorized reviewers."
 )
+LOCATION_NOTICE = (
+    "Source locations: lines are 1-based; offsets are 0-based character positions, end exclusive."
+)
 PROG = "python -m grantcheck.cli"
 LABEL_WIDTH = 24
+SHA256_PREFIX_LENGTH = 12
 
 
 class _ArgumentParser(argparse.ArgumentParser):
@@ -116,11 +120,42 @@ def _format_json(value):
     return json.dumps(value)
 
 
-def _detail_lines(rule_results):
+def _format_location(location):
+    start_line, end_line = location["start_line"], location["end_line"]
+    lines = f"line {start_line}" if start_line == end_line else f"lines {start_line}-{end_line}"
+    return f"{lines}, offsets {location['start_offset']}-{location['end_offset']}"
+
+
+def _source_lines(source, status):
+    """Lines locating one evidence record, from its already-resolved provenance record."""
+    if source is None:
+        return ["        source: not available (provenance not resolved)"]
+
+    document = f"{source['filename']} (sha256 {source['document_sha256'][:SHA256_PREFIX_LENGTH]}...)"
+    count, locations = source["occurrence_count"], source["locations"]
+    if count == 0:
+        # The document is known, but there is no evidence to locate in it.
+        return [f"        source document: {document}; no evidence location"]
+
+    qualifier = " (uncertain evidence)" if status == "uncertain" else ""
+    if count == 1:
+        return [f"        location{qualifier}: {document}, {_format_location(locations[0])}"]
+
+    shown = "" if len(locations) == count else f"; showing first {len(locations)}"
+    lines = [
+        f"        possible locations{qualifier}: {document}; excerpt occurs {count} times, "
+        f"not uniquely identified{shown}"
+    ]
+    lines += [f"          - {_format_location(location)}" for location in locations]
+    return lines
+
+
+def _detail_lines(rule_results, provenance):
     lines = ["", DETAILS_NOTICE]
     if rule_results is None:
         lines.append("  not available (processing stopped before rule evaluation)")
         return lines
+    lines.append(LOCATION_NOTICE)
     for rule_id in sorted(rule_results):
         rule = rule_results[rule_id]
         lines.append(f"  {rule_id}  {rule['rule_name']}")
@@ -133,6 +168,8 @@ def _detail_lines(rule_results):
                     f"value={_format_json(record['value'])}"
                 )
                 lines.append(f"        excerpt: {_format_json(record['evidence_text'])}")
+                source = None if provenance is None else provenance.get(category, {}).get(role)
+                lines += _source_lines(source, record["status"])
     return lines
 
 
@@ -163,7 +200,7 @@ def format_report(scenario_id, result, details=False):
         lines.append("  none")
 
     if details:
-        lines += _detail_lines(rule_results)
+        lines += _detail_lines(rule_results, result.get("provenance"))
 
     lines += ["", DISCLAIMER]
     return "\n".join(lines)

@@ -2,6 +2,8 @@
 
 The real sample_data/ files are only read; failure cases use copies in tmp_path.
 """
+import copy
+import hashlib
 import json
 import shutil
 import sys
@@ -12,8 +14,10 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 import grantcheck.orchestrator as orchestrator  # noqa: E402
+from grantcheck.fact_schema import FACT_SOURCES, SOURCE_RECORD_FIELDS  # noqa: E402
 from grantcheck.fact_validation import CandidateFactValidationError  # noqa: E402
 from grantcheck.orchestrator import process_application  # noqa: E402
+from grantcheck.provenance import ProvenanceError  # noqa: E402
 
 SAMPLE_DATA_DIR = ROOT / "sample_data"
 SCENARIOS = [
@@ -34,10 +38,15 @@ CANDIDATE_FACT_ERROR = {
     "stage": "rule_evaluation", "reason": "invalid_candidate_facts",
     "message": "Candidate facts could not be validated.",
 }
+PROVENANCE_ERROR = {
+    "stage": "provenance", "reason": "unresolved_provenance",
+    "message": "Source provenance could not be resolved.",
+}
 RESULT_KEYS = {
     "application_id", "processing_status", "review_required",
-    "candidate_facts", "rule_results", "finding_count", "errors",
+    "candidate_facts", "rule_results", "finding_count", "errors", "provenance",
 }
+ROLE_FILES = dict(zip(("budget", "budget_justification", "project_narrative"), DOCUMENT_FILES))
 
 
 def expected_results(scenario_dir):
@@ -283,3 +292,191 @@ def test_unexpected_errors_are_not_swallowed(monkeypatch):
     monkeypatch.setattr(orchestrator, "evaluate_rules", broken)
     with pytest.raises(RuntimeError, match="unexpected bug"):
         run(SAMPLE_DATA_DIR / "S01_consistent")
+
+
+# --- Provenance (Stage 2) ------------------------------------------------------
+
+
+def stored_text(scenario_dir, role):
+    """The text intake stores: the file's bytes decoded as UTF-8, line endings untouched."""
+    return (scenario_dir / ROLE_FILES[role]).read_bytes().decode("utf-8")
+
+
+@pytest.mark.parametrize("scenario_name", SCENARIOS)
+def test_provenance_mirrors_fact_sources(scenario_name):
+    provenance = run(SAMPLE_DATA_DIR / scenario_name)["provenance"]
+
+    assert list(provenance) == list(FACT_SOURCES)
+    for category, roles in FACT_SOURCES.items():
+        assert list(provenance[category]) == list(roles)
+        for role in roles:
+            assert set(provenance[category][role]) == {
+                "filename", "document_sha256", "occurrence_count", "locations",
+            }
+
+
+@pytest.mark.parametrize("scenario_name", SCENARIOS)
+def test_provenance_locations_point_to_exact_excerpts(scenario_name):
+    scenario_dir = SAMPLE_DATA_DIR / scenario_name
+    result = run(scenario_dir)
+
+    for category, roles in FACT_SOURCES.items():
+        for role in roles:
+            record = result["provenance"][category][role]
+            excerpt = result["candidate_facts"][category][role]["evidence_text"]
+            source_bytes = (scenario_dir / ROLE_FILES[role]).read_bytes()
+            assert record["filename"] == ROLE_FILES[role]
+            assert record["document_sha256"] == hashlib.sha256(source_bytes).hexdigest()
+            if excerpt is None:
+                assert (record["occurrence_count"], record["locations"]) == (0, [])
+                continue
+            text = stored_text(scenario_dir, role)
+            assert record["occurrence_count"] == len(record["locations"]) >= 1
+            for location in record["locations"]:
+                assert text[location["start_offset"]:location["end_offset"]] == excerpt
+                assert location["start_line"] == text.count("\n", 0, location["start_offset"]) + 1
+
+
+@pytest.mark.parametrize("scenario_name", SCENARIOS)
+def test_provenance_leaves_facts_and_rule_results_unchanged(scenario_name, monkeypatch):
+    # Same run with provenance disabled: every other field must be identical.
+    scenario_dir = SAMPLE_DATA_DIR / scenario_name
+    with_provenance = run(scenario_dir)
+    monkeypatch.setattr(orchestrator, "resolve_provenance", lambda application, candidate_facts: None)
+    without_provenance = run(scenario_dir)
+
+    for key in RESULT_KEYS - {"provenance"}:
+        assert with_provenance[key] == without_provenance[key], f"{key} changed"
+    assert with_provenance["candidate_facts"] == replay_facts(scenario_dir)
+    for category, roles in FACT_SOURCES.items():
+        for role in roles:
+            assert set(with_provenance["candidate_facts"][category][role]) == set(SOURCE_RECORD_FIELDS)
+    assert all(
+        set(rule) == {"rule_name", "outcome", "message", "evidence"}
+        for rule in with_provenance["rule_results"].values()
+    )
+
+
+def test_s02_provenance_locates_conflicting_costs():
+    scenario_dir = SAMPLE_DATA_DIR / "S02_personnel_cost_conflict"
+    cost = run(scenario_dir)["provenance"]["personnel_cost_usd"]
+
+    for role, excerpt, line in [
+        ("budget", "Personnel Cost: $24,000", 12),
+        ("budget_justification", "Research Assistant is $20,000.", 16),
+    ]:
+        start = stored_text(scenario_dir, role).index(excerpt)
+        assert cost[role]["locations"] == [
+            {"start_offset": start, "end_offset": start + len(excerpt), "start_line": line, "end_line": line},
+        ]
+
+
+def test_s07_provenance_has_no_fabricated_locations():
+    scenario_dir = SAMPLE_DATA_DIR / "S07_unprocessable_document"
+    result = run(scenario_dir)
+    placeholder_hash = hashlib.sha256((scenario_dir / "budget_justification.txt").read_bytes()).hexdigest()
+
+    assert result["processing_status"] == "exception"
+    assert result["review_required"] is True
+    assert set(outcomes(result).values()) == {"not_evaluated"}
+    for category, roles in FACT_SOURCES.items():
+        if "budget_justification" in roles:
+            assert result["provenance"][category]["budget_justification"] == {
+                "filename": "budget_justification.txt",
+                "document_sha256": placeholder_hash,
+                "occurrence_count": 0,
+                "locations": [],
+            }
+    assert result["provenance"]["personnel_cost_usd"]["budget"]["occurrence_count"] == 1
+
+
+def test_intake_failure_has_no_provenance(s01_copy):
+    (s01_copy / "budget.txt").unlink()
+    result = run(s01_copy)
+
+    assert set(result) == RESULT_KEYS
+    assert result["provenance"] is None
+
+
+def test_replay_failure_has_no_provenance(s01_copy):
+    (s01_copy / "replay_facts.json").write_text("{", encoding="utf-8")
+    result = run(s01_copy)
+
+    assert result["errors"] == [REPLAY_ERROR]
+    assert result["provenance"] is None
+
+
+def test_provenance_is_not_resolved_after_replay_failure(s01_copy, monkeypatch):
+    def must_not_run(*args, **kwargs):
+        raise AssertionError("provenance must not be resolved without loaded candidate facts")
+
+    monkeypatch.setattr(orchestrator, "resolve_provenance", must_not_run)
+    (s01_copy / "replay_facts.json").unlink()
+
+    assert run(s01_copy)["errors"] == [REPLAY_ERROR]
+
+
+def test_provenance_survives_rule_evaluation_failure(monkeypatch):
+    scenario_dir = SAMPLE_DATA_DIR / "S01_consistent"
+    expected_provenance = run(scenario_dir)["provenance"]  # from a normal, successful run
+
+    def reject(candidate_facts):
+        raise CandidateFactValidationError("test failure")
+
+    monkeypatch.setattr(orchestrator, "evaluate_rules", reject)
+    result = run(scenario_dir)
+
+    assert result["errors"] == [CANDIDATE_FACT_ERROR]
+    assert result["rule_results"] is None
+    assert result["provenance"] == expected_provenance
+
+
+def test_provenance_error_is_explicit_and_sanitized(monkeypatch):
+    def fail(application, candidate_facts):
+        raise ProvenanceError("documents['budget']: sha256 does not match CANARY-3141 Personnel Cost: $24,000")
+
+    def must_not_run(candidate_facts):
+        raise AssertionError("rules must not run when provenance cannot be resolved")
+
+    monkeypatch.setattr(orchestrator, "resolve_provenance", fail)
+    monkeypatch.setattr(orchestrator, "evaluate_rules", must_not_run)
+    scenario_dir = SAMPLE_DATA_DIR / "S01_consistent"
+
+    result = run(scenario_dir)
+
+    assert set(result) == RESULT_KEYS
+    assert result["processing_status"] == "exception"
+    assert result["review_required"] is True
+    assert result["errors"] == [PROVENANCE_ERROR]
+    assert result["provenance"] is None
+    assert result["rule_results"] is None
+    assert result["finding_count"] == 0
+    assert result["candidate_facts"] == replay_facts(scenario_dir)
+    serialized = json.dumps(result["errors"])
+    assert "CANARY-3141" not in serialized
+    assert "sha256" not in serialized
+
+
+def test_orchestrator_does_not_mutate_candidate_facts_or_fixtures(monkeypatch):
+    scenario_dir = SAMPLE_DATA_DIR / "S06_ambiguous_travel_justification"
+    fixture_hashes = {
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(scenario_dir.iterdir())
+    }
+    seen = {}
+    real_resolve = orchestrator.resolve_provenance
+
+    def recording_resolve(application, candidate_facts):
+        seen["application"] = copy.deepcopy(application)
+        seen["facts"] = copy.deepcopy(candidate_facts)
+        provenance = real_resolve(application, candidate_facts)
+        assert application == seen["application"], "resolve_provenance changed the application"
+        assert candidate_facts == seen["facts"], "resolve_provenance changed the candidate facts"
+        return provenance
+
+    monkeypatch.setattr(orchestrator, "resolve_provenance", recording_resolve)
+    result = run(scenario_dir)
+
+    assert result["candidate_facts"] == seen["facts"]
+    assert fixture_hashes == {
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(scenario_dir.iterdir())
+    }

@@ -5,6 +5,7 @@ subprocess with an explicit PYTHONPATH and an unrelated working directory, so
 they do not depend on pytest collection order or the current directory. A few
 call main() in-process to simulate failures the fixed sample scenarios cannot.
 """
+import hashlib
 import json
 import os
 import re
@@ -19,6 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = ROOT / "src"
 sys.path.insert(0, str(SRC_DIR))
 import grantcheck.cli as cli  # noqa: E402
+from grantcheck.provenance import find_occurrences  # noqa: E402
 
 SAMPLE_DATA_DIR = ROOT / "sample_data"
 SCENARIO_IDS = ["S01", "S02", "S03", "S04", "S05", "S06", "S07"]
@@ -354,3 +356,196 @@ def test_unexpected_error_exits_one_without_traceback_or_detail(monkeypatch, cap
     assert "SECRET-DETAIL-9090" not in captured.err
     assert "Traceback" not in captured.err
     assert DISCLAIMER in captured.err
+
+
+# --- Provenance in --details (Stage 3) -----------------------------------------------
+
+LOCATION_NOTICE = "Source locations: lines are 1-based; offsets are 0-based character positions, end exclusive."
+
+
+def short_hash(scenario_id, filename):
+    return hashlib.sha256((scenario_dir(scenario_id) / filename).read_bytes()).hexdigest()[:12]
+
+
+def expected_location(scenario_id, filename, excerpt, line, label="location"):
+    """The exact location line, with offsets computed from the file's own (checkout-dependent) text."""
+    text = (scenario_dir(scenario_id) / filename).read_bytes().decode("utf-8")
+    start = text.index(excerpt)
+    return (
+        f"        {label}: {filename} (sha256 {short_hash(scenario_id, filename)}...), "
+        f"line {line}, offsets {start}-{start + len(excerpt)}"
+    )
+
+
+@pytest.mark.parametrize("scenario_id", SCENARIO_IDS)
+def test_summary_contains_no_provenance(tmp_path, scenario_id):
+    output = run_cli("--scenario", scenario_id, cwd=tmp_path).stdout
+
+    for marker in (LOCATION_NOTICE, "sha256", "offsets", "location", "source document"):
+        assert marker not in output
+
+
+def test_details_show_source_filenames_and_short_hashes(tmp_path):
+    output = run_cli("--scenario", "S01", "--details", cwd=tmp_path).stdout
+
+    assert LOCATION_NOTICE in output
+    for filename in cli.DOCUMENT_FILES:
+        assert f"{filename} (sha256 {short_hash('S01', filename)}...)" in output
+        full_hash = hashlib.sha256((scenario_dir("S01") / filename).read_bytes()).hexdigest()
+        assert full_hash not in output, "only an abbreviated fingerprint is shown"
+
+
+def test_s02_details_locate_both_conflicting_costs(tmp_path):
+    lines = run_cli("--scenario", "S02", "--details", cwd=tmp_path).stdout.splitlines()
+
+    assert expected_location("S02", "budget.txt", "Personnel Cost: $24,000", 12) in lines
+    assert expected_location("S02", "budget_justification.txt", "Research Assistant is $20,000.", 16) in lines
+
+
+def test_location_follows_its_own_evidence_record(tmp_path):
+    lines = run_cli("--scenario", "S02", "--details", cwd=tmp_path).stdout.splitlines()
+    index = lines.index('        excerpt: "Research Assistant is $20,000."')
+    assert lines[index + 1] == expected_location(
+        "S02", "budget_justification.txt", "Research Assistant is $20,000.", 16,
+    )
+
+
+def test_s06_uncertain_location_is_not_presented_as_confirmed(tmp_path):
+    lines = run_cli("--scenario", "S06", "--details", cwd=tmp_path).stdout.splitlines()
+    excerpt = "Travel funds support project-related attendance and transportation activities."
+
+    assert "      travel_justification / budget_justification: status=uncertain, value=null" in lines
+    assert expected_location("S06", "budget_justification.txt", excerpt, 21, label="location (uncertain evidence)") in lines
+    assert expected_location("S06", "budget_justification.txt", excerpt, 21) not in lines
+
+
+def test_s07_details_do_not_fabricate_locations(tmp_path):
+    output = run_cli("--scenario", "S07", "--details", cwd=tmp_path).stdout
+    document_only = (
+        f"        source document: budget_justification.txt "
+        f"(sha256 {short_hash('S07', 'budget_justification.txt')}...); no evidence location"
+    )
+
+    # R01-R04 each cite one unprocessable justification record.
+    assert output.splitlines().count(document_only) == 4
+    assert "budget_justification.txt (sha256" not in output.replace(document_only, "")
+    assert expected_location("S07", "budget.txt", "Personnel Cost: $24,000", 12) in output.splitlines()
+
+
+def test_missing_evidence_shows_document_identity_only(tmp_path):
+    lines = run_cli("--scenario", "S05", "--details", cwd=tmp_path).stdout.splitlines()
+    index = lines.index("      travel_justification / budget_justification: status=missing, value=null")
+
+    assert lines[index + 1] == "        excerpt: null"
+    assert lines[index + 2].startswith("        source document: budget_justification.txt (sha256 ")
+    assert lines[index + 2].endswith("; no evidence location")
+
+
+def test_replay_failure_details_show_no_locations(tmp_path, monkeypatch, capsys):
+    sample_copy = tmp_path / "sample_data"
+    folder = sample_copy / cli.SCENARIO_DIRECTORIES["S01"]
+    shutil.copytree(scenario_dir("S01"), folder)
+    (folder / "replay_facts.json").write_text("{", encoding="utf-8")
+    monkeypatch.setattr(cli, "SAMPLE_DATA_DIR", sample_copy)
+
+    assert cli.main(["--scenario", "S01", "--details"]) == 0
+    output = capsys.readouterr().out
+
+    assert "  - [replay] invalid_replay: Replay data could not be validated." in output
+    assert "sha256" not in output
+    assert "offsets" not in output
+
+
+# Synthetic results for cases the fixtures do not contain (repeated excerpts, >100 matches).
+
+
+def synthetic_result(provenance, statuses=("present", "uncertain")):
+    evidence = {
+        "personnel_role": {
+            "budget": {"value": "x", "status": statuses[0], "evidence_text": "x"},
+            "budget_justification": {
+                "value": None if statuses[1] != "present" else "x", "status": statuses[1], "evidence_text": "x",
+            },
+        },
+    }
+    return {
+        "application_id": "GC-TEST",
+        "processing_status": "completed",
+        "review_required": True,
+        "candidate_facts": None,
+        "rule_results": {"R01": {"rule_name": "Test rule", "outcome": "uncertain",
+                                 "message": "Test rule: test", "evidence": evidence}},
+        "finding_count": 0,
+        "errors": [],
+        "provenance": provenance,
+    }
+
+
+def synthetic_source(filename, text, excerpt):
+    return {"filename": filename, "document_sha256": "a" * 64, **find_occurrences(text, excerpt)}
+
+
+def test_repeated_and_over_limit_occurrences_are_not_presented_as_unique():
+    provenance = {"personnel_role": {
+        "budget": synthetic_source("budget.txt", "x x\nx", "x"),                     # 3 occurrences
+        "budget_justification": synthetic_source("budget_justification.txt", "x\n" * 250, "x"),  # 250
+    }}
+
+    lines = cli.format_report("S01", synthetic_result(provenance), details=True).splitlines()
+
+    three = lines.index(
+        "        possible locations: budget.txt (sha256 aaaaaaaaaaaa...); "
+        "excerpt occurs 3 times, not uniquely identified"
+    )
+    assert lines[three + 1:three + 4] == [
+        "          - line 1, offsets 0-1",
+        "          - line 1, offsets 2-3",
+        "          - line 2, offsets 4-5",
+    ]
+    many = lines.index(
+        "        possible locations (uncertain evidence): budget_justification.txt (sha256 aaaaaaaaaaaa...); "
+        "excerpt occurs 250 times, not uniquely identified; showing first 100"
+    )
+    bullets = [line for line in lines[many + 1:] if line.startswith("          - ")]
+    assert len(bullets) == 100
+    assert bullets[-1] == "          - line 100, offsets 198-199"
+
+
+def test_multiline_location_shows_line_range():
+    text = "first\nsecond\nthird"
+    provenance = {"personnel_role": {
+        "budget": synthetic_source("budget.txt", text, "first\nsecond"),
+        "budget_justification": synthetic_source("budget_justification.txt", text, "third"),
+    }}
+
+    output = cli.format_report("S01", synthetic_result(provenance), details=True)
+
+    assert "        location: budget.txt (sha256 aaaaaaaaaaaa...), lines 1-2, offsets 0-12" in output
+
+
+@pytest.mark.parametrize("missing_how", ["none", "absent_key"])
+def test_details_handle_missing_provenance_safely(missing_how):
+    result = synthetic_result(None)
+    if missing_how == "absent_key":
+        del result["provenance"]
+
+    lines = cli.format_report("S01", result, details=True).splitlines()
+
+    assert lines.count("        source: not available (provenance not resolved)") == 2
+    assert lines[-1] == DISCLAIMER
+
+
+def test_main_with_no_provenance_still_reports(monkeypatch, capsys):
+    real_process = cli.process_application
+
+    def without_provenance(*args):
+        result = real_process(*args)
+        result["provenance"] = None
+        return result
+
+    monkeypatch.setattr(cli, "process_application", without_provenance)
+
+    assert cli.main(["--scenario", "S02", "--details"]) == 0
+    output = capsys.readouterr().out
+    assert "source: not available (provenance not resolved)" in output
+    assert 'excerpt: "Research Assistant is $20,000."' in output
