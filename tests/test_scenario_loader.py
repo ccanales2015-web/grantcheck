@@ -307,3 +307,27 @@ def test_unmodified_copy_is_valid(tmp_path):
     # Guards the table above: each case fails only because of its own change.
     scenario = load_scenario(make_scenario(tmp_path))
     assert scenario["scenario_id"] == "S01"
+
+
+def test_not_found_expected_fact_status_is_recognized(tmp_path):
+    scenario_dir = make_scenario(tmp_path)
+    data = read_json(scenario_dir)
+    apply_change(data, f"{FACTS}.project_duration_months.project_narrative",
+                 {"value": None, "status": "not_found"})
+    write_json(scenario_dir, data)
+
+    record = load_scenario(scenario_dir)["expected_results"][FACTS]["project_duration_months"]["project_narrative"]
+    assert record == {"value": None, "status": "not_found"}
+
+
+def test_not_found_expected_fact_with_value_is_rejected(tmp_path):
+    scenario_dir = make_scenario(tmp_path)
+    data = read_json(scenario_dir)
+    apply_change(data, f"{FACTS}.project_duration_months.project_narrative",
+                 {"value": 24, "status": "not_found"})
+    write_json(scenario_dir, data)
+
+    with pytest.raises(ScenarioValidationError) as error:
+        load_scenario(scenario_dir)
+    assert_error_mentions(error, f"{FACTS}.project_duration_months.project_narrative.value",
+                          "must be null when status is 'not_found'")

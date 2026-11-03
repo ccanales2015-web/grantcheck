@@ -64,7 +64,7 @@ NUMERIC_FACTS = {
 TEXT_FACTS = {"personnel_role"}
 TRAVEL_JUSTIFICATION_VALUES = {"adequate"}
 
-ALLOWED_FACT_STATUSES = {"present", "missing", "uncertain", "unprocessable"}
+ALLOWED_FACT_STATUSES = {"present", "missing", "uncertain", "unprocessable", "not_found"}
 EXPECTED_RULE_IDS = {"R-01", "R-02", "R-03", "R-04"}
 ALLOWED_RULE_OUTCOMES = {"pass", "finding", "uncertain", "not_evaluated"}
 ALLOWED_PROCESSING_STATUSES = {"completed", "exception"}

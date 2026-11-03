@@ -5,7 +5,7 @@ from types import MappingProxyType
 
 import pytest
 
-from grantcheck.fact_schema import FACT_SOURCES
+from grantcheck.fact_schema import FACT_SOURCES, FACT_STATUSES, NOT_FOUND_REASON_CODES, SOURCE_RECORD_FIELDS
 from grantcheck.fact_validation import (
     CandidateFactValidationError,
     validate_candidate_facts,
@@ -168,3 +168,57 @@ def test_valid_boundary_values(valid_facts, category, good):
     before = deepcopy(facts)
     assert validate_candidate_facts(facts) is None
     assert facts == before
+
+
+# --- not_found (Increment 1A) ---------------------------------------------------
+
+
+NOT_FOUND = {"value": None, "status": "not_found", "evidence_text": None}
+
+
+def test_not_found_is_a_supported_status():
+    assert "not_found" in FACT_STATUSES
+    assert SOURCE_RECORD_FIELDS == ("value", "status", "evidence_text"), "records keep exactly three fields"
+
+
+def test_not_found_reason_codes_are_reserved_separately():
+    assert NOT_FOUND_REASON_CODES == ("unsupported_fact_type", "no_supported_pattern_matched")
+    assert not set(NOT_FOUND_REASON_CODES) & set(SOURCE_RECORD_FIELDS)
+
+
+@pytest.mark.parametrize(
+    "category, role",
+    [(category, role) for category, roles in FACT_SOURCES.items() for role in roles],
+)
+def test_well_formed_not_found_record_is_accepted(valid_facts, category, role):
+    facts = deepcopy(valid_facts)
+    facts[category][role] = dict(NOT_FOUND)
+    before = deepcopy(facts)
+
+    assert validate_candidate_facts(facts) is None
+    assert facts == before
+
+
+def test_all_records_not_found_is_accepted(valid_facts):
+    facts = {category: {role: dict(NOT_FOUND) for role in roles} for category, roles in FACT_SOURCES.items()}
+    assert validate_candidate_facts(facts) is None
+
+
+@pytest.mark.parametrize("value", [24000, 0, "", "adequate", False, 0.0], ids=repr)
+def test_not_found_with_value_is_rejected(valid_facts, value):
+    facts = changed(valid_facts, "personnel_cost_usd", "budget", status="not_found", value=value, evidence_text=None)
+    assert_invalid(facts, "candidate_facts.personnel_cost_usd.budget.value")
+
+
+@pytest.mark.parametrize("evidence", ["Personnel Cost: $24,000", "", "   ", 0], ids=repr)
+def test_not_found_with_evidence_is_rejected(valid_facts, evidence):
+    facts = changed(valid_facts, "travel_justification", "budget_justification",
+                    status="not_found", value=None, evidence_text=evidence)
+    assert_invalid(facts, "candidate_facts.travel_justification.budget_justification.evidence_text")
+
+
+@pytest.mark.parametrize("extra", ["reason", "reason_code", "not_found_reason"])
+def test_reason_code_on_record_is_rejected(valid_facts, extra):
+    facts = deepcopy(valid_facts)
+    facts["personnel_role"]["budget"] = {**NOT_FOUND, extra: "no_supported_pattern_matched"}
+    assert_invalid(facts, f"candidate_facts.personnel_role.budget.{extra}")

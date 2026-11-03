@@ -788,3 +788,28 @@ def test_single_line_fixture_evidence_works_with_either_line_ending(tmp_path, do
     application = intake_application("GC-S01", *write_documents(tmp_path / "documents", document_newline))
     result = load_replay_facts(application, BASELINE_DIR / REPLAY_FILE)
     assert result == read_replay(BASELINE_DIR)[CF]
+
+
+# --- not_found (Increment 1A) ---------------------------------------------------
+
+
+def test_well_formed_not_found_record_loads(tmp_path, application):
+    # FACT_STATUSES now includes not_found, so replay files may contain it.
+    data = read_replay(BASELINE_DIR)
+    apply_change(data, TRAVEL_JUSTIFICATION, {"value": None, "status": "not_found", "evidence_text": None})
+
+    result = load_replay_facts(application, write_replay(tmp_path, data))
+
+    assert result["travel_justification"]["budget_justification"]["status"] == "not_found"
+
+
+@pytest.mark.parametrize("record_field, bad", [
+    ("value", "adequate"),
+    ("evidence_text", "These funds will support travel to coastal monitoring"),  # verbatim, but not allowed
+], ids=["with_value", "with_evidence"])
+def test_malformed_not_found_record_is_rejected(tmp_path, application, record_field, bad):
+    record = {"value": None, "status": "not_found", "evidence_text": None, record_field: bad}
+    data = read_replay(BASELINE_DIR)
+    apply_change(data, TRAVEL_JUSTIFICATION, record)
+
+    assert_replay_error(application, write_replay(tmp_path, data), WHERE, field(TRAVEL_JUSTIFICATION, record_field))

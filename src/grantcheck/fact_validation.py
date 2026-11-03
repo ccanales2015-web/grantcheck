@@ -88,6 +88,6 @@ def validate_candidate_facts(candidate_facts):
                 if not isinstance(evidence, str) or not evidence.strip():
                     _fail(f"{record_path}.evidence_text", "must be a nonblank string")
             elif evidence is not None:
-                _fail(f"{record_path}.evidence_text", "must be None for missing or unprocessable")
+                _fail(f"{record_path}.evidence_text", "must be None for missing, unprocessable, or not_found")
 
     return None

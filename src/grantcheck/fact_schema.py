@@ -41,6 +41,13 @@ FACT_ALLOWED_VALUES = MappingProxyType({
     "travel_justification": ("adequate",),
 })
 
-FACT_STATUSES = ("present", "missing", "uncertain", "unprocessable")
+# "not_found": no supported statement was recognized. Unlike "missing", it does
+# not confirm the information is absent. Like "missing", its value and
+# evidence_text are null.
+FACT_STATUSES = ("present", "missing", "uncertain", "unprocessable", "not_found")
 
 SOURCE_RECORD_FIELDS = ("value", "status", "evidence_text")
+
+# Reserved for future extraction metadata kept separately from candidate-fact
+# records; source records never carry a reason code.
+NOT_FOUND_REASON_CODES = ("unsupported_fact_type", "no_supported_pattern_matched")
