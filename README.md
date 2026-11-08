@@ -33,9 +33,11 @@ Each rule produces one of four outcomes: `pass`, `finding` (a potential inconsis
 
 ```
 document intake -> replay loading and validation -> provenance resolution -> rule evaluation -> CLI report
+
+The **optional programmatic review workflow** extends this with reviewer-authorized correction proposals, accepted corrections, reevaluation snapshots, SQLite storage, and structured reports. It is not exposed through the original scenario CLI.
 ```
 
-`orchestrator.process_application()` runs the first four stages in that order and returns one summary, which the CLI presents.
+`orchestrator.process_application()` runs the first four stages in that order and returns one summary, which the CLI presents. The separate `review_workflow` API integrates human corrections and SQLite persistence.
 
 | Stage | Module (`src/grantcheck/`) | Responsibility |
 |---|---|---|
@@ -97,7 +99,7 @@ Additional safeguards in the implementation:
 - Missing or unprocessable evidence is never given an invented source location.
 - Ambiguous or unusable information is reported as `uncertain` or `not_evaluated`, not guessed.
 - Error output uses structured, sanitized fields. Full document text, raw validation messages, and tracebacks are not printed during ordinary processing failures.
-- No network connection, external AI service, or data persistence is used.
+- No network connection or external AI service is used. The original scenario CLI does not persist results; the separate `review_workflow` API can persist review sessions to local SQLite files.
 
 ## Technology and Prerequisites
 
@@ -230,16 +232,30 @@ From the repository root:
 
 The suite runs offline and includes unit tests for each module (including repeated, overlapping, multiline, LF/CRLF, and more-than-100-occurrence provenance cases), schema checks for the sample fixtures, integration tests across all seven scenarios, and CLI tests that run the real command-line entry point. A passing suite shows the implemented behavior is consistent with its tests; it does not by itself establish compliance with the requirements above. Set `$env:PYTHONPATH = "src"` first if you run an individual test file on its own.
 
+## Extended Review Workflow (Stage 6–9)
+
+The programmatic API `grantcheck.review_workflow` adds `start_review`, `resume_review`, and session methods `submit`, `decide`, `withdraw`, `reevaluate`, and `report`. `grantcheck.sqlite_persistence.SQLiteReviewStore` stores immutable evaluation snapshots, proposals, and lifecycle events. The original CLI remains a read-only scenario runner.
+
+To demonstrate the extended workflow, run from the repository root after setting `PYTHONPATH`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/demo_review.py
+```
+
+The script uses **only synthetic S04 inputs** and a temporary SQLite database. It demonstrates an R03 finding, a staff-proposed human assertion, an authorization check, authorized acceptance and reevaluation, and recovery after reopening the database. It never makes a grant-funding decision. See `docs/DEMONSTRATION.md` for expected observations and other normal/exception CLI scenarios.
+
+**Important scope limits:** R03 is the persisted snapshot baseline; R01–R04 are recomputed in structured reports. The caller supplies original intake documents again when resuming. Reviewer identities are supplied by the caller, not authenticated. Snapshot and event writes are not one atomic transaction. The extraction is offline replay, not a live AI model.
+
 ## Known Limitations
 
 - **Offline replay, not live extraction.** Candidate facts are pre-recorded in `replay_facts.json` files. No AI model is called, so passing tests demonstrates validation and rule logic, not the accuracy of live AI extraction.
 - **Plain-text input only.** Documents must be UTF-8 text files of at most 1,048,576 bytes. PDF, Word, and other formats are not parsed.
-- **No persistence, deployment, or graphical interface.** Results are printed to the terminal and not stored. There is no web or desktop interface, and the package is not installed or deployed.
+- **Persistence is optional and API-only.** The original scenario CLI does not persist results; the Stage 9 review workflow uses SQLite. There is no graphical interface, hosted deployment, or authenticated reviewer login.
 - **Limited demonstration scope.** The CLI runs only the seven bundled synthetic scenarios, and only the four checks above are implemented.
 - **No grant decisions.** GrantCheck never approves, rejects, or determines eligibility, and it does not resolve the discrepancies it reports.
 - **Small, synthetic evaluation dataset.** The provenance results above come from seven synthetic scenarios with 16 distinct excerpts. All evaluated excerpts are unique and single-line; repeated and multiline excerpts are covered by unit tests rather than by the seven scenarios.
 - **Location, not correctness.** Provenance establishes where an excerpt occurs, not whether the extracted or normalized value is correct (for example, that "two years" means 24 months).
-- **No persistent identifiers or review history.** There are no fact IDs, finding IDs, or records of human review decisions.
+- **Review history is available only through the newer API.** The original scenario CLI does not create persistent review sessions. The Stage 9 API stores processing-run IDs, correction proposals, decisions, and snapshots; it does not introduce individual fact or finding IDs.
 - **Offsets depend on the exact text.** Character offsets depend on the document's exact text and line endings; line numbers are more portable.
 - **Abbreviated CLI fingerprints.** The 12-character hash shown by the CLI is not a substitute for checking the full SHA-256 in the provenance map.
 - **No location for missing information.** Missing information cannot have a genuine source-text location; GrantCheck identifies the document where it was expected instead.
@@ -250,7 +266,7 @@ The suite runs offline and includes unit tests for each module (including repeat
 ```
 grantcheck/
 ├── README.md
-├── requirements.txt          # pytest==9.2.0
+├── requirements.txt          # pytest dependency
 ├── sample_data/              # seven synthetic scenarios (S01–S07)
 │   └── S0x_<name>/
 │       ├── budget.txt
@@ -268,6 +284,9 @@ grantcheck/
 │       ├── rule_engine.py
 │       ├── orchestrator.py
 │       └── cli.py
+├── scripts/demo_review.py     # synthetic correction + SQLite demonstration
+├── docs/                     # demo, traceability and submission checklist
+├── CONTRIBUTING.md            # contribution and review guidance
 └── tests/                    # pytest suite
 ```
 
@@ -286,6 +305,10 @@ $env:PYTHONPATH = "src"
 ```
 
 Expected: the tests pass; S01 reports all rules passing with no review required; S02 reports an R01 personnel cost finding and shows its evidence with source locations; S07 reports a processing exception with all four rules not evaluated. All three CLI runs exit with code 0.
+
+## GitHub and License
+
+**Repository URL:** `[INSERT YOUR PUBLIC GITHUB REPOSITORY URL BEFORE SUBMISSION]` (not yet verified). Publish only after reviewing the repository for credentials, private data, and generated files. The assignment also requests a root-level `LICENSE`; select and add a license only after deciding what rights you intend to grant. See `docs/SUBMISSION_CHECKLIST.md`.
 
 ## Academic Context
 

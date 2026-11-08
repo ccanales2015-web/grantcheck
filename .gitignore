@@ -19,3 +19,19 @@ Thumbs.db
 
 # Python packaging metadata
 *.egg-info/
+
+# Local SQLite databases and temporary files
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Local test coverage reports
+.coverage
+htmlcov/
+
+# Temporary and backup files
+*.bak
+*.tmp
