@@ -14,8 +14,8 @@ This table maps the instructor's Final Project deliverables to implementation or
 | Normal and exception demonstration | S01/S02/S07 CLI; `scripts/demo_review.py` S04 | Documented local run path; owner should capture output |
 | Functional and exception validation | `tests/`; user-reported 1,210 passed Nov 7, 2026 | Observed local regression; does not prove external usability |
 | Quality and security limitations | README and Stage 9 notes | Documented; not production-hardened |
-| GitHub publication and repository URL | Owner to publish and insert actual URL | **Outstanding** |
-| Root LICENSE | Owner must choose terms | **Outstanding** |
+| GitHub publication and repository URL | https://github.com/ccanales2015-web/grantcheck | **Partial**: published privately; public visibility pending owner decision |
+| Root LICENSE | Root-level MIT `LICENSE` | Provided |
 | Contribution guidance | `CONTRIBUTING.md` | Provided in repair package |
 | Updated Solution Design Report and PDF | Stage 10 draft + report addendum in this package | **Needs owner merge/export and review** |
 | Presentation/portfolio evidence | Stage 10 12-slide presentation | Draft available; final URL/evidence must be added |

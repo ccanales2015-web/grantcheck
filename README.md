@@ -308,7 +308,11 @@ Expected: the tests pass; S01 reports all rules passing with no review required;
 
 ## GitHub and License
 
-**Repository URL:** `[INSERT YOUR PUBLIC GITHUB REPOSITORY URL BEFORE SUBMISSION]` (not yet verified). Publish only after reviewing the repository for credentials, private data, and generated files. The assignment also requests a root-level `LICENSE`; select and add a license only after deciding what rights you intend to grant. See `docs/SUBMISSION_CHECKLIST.md`.
+**Repository URL:** https://github.com/ccanales2015-web/grantcheck
+
+Publish only after reviewing the repository for credentials, private data, and generated files.
+
+**License:** GrantCheck is released under the MIT License. The full license text is in the root-level [`LICENSE`](LICENSE) file. See `docs/SUBMISSION_CHECKLIST.md` for the remaining submission steps.
 
 ## Academic Context
 
